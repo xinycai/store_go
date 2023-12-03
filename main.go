@@ -26,13 +26,73 @@ func main() {
 		log.Printf("Error: 无法获取 data 目录信息 %s\n", err)
 	}
 	http.HandleFunc("/get/", getFileHandler)
-	http.HandleFunc("/upload", uploadHandler)
-	http.HandleFunc("/list", listHandler)
-	http.HandleFunc("/delete", deleteHandler)
-	err = http.ListenAndServe(":8082", nil)
+
+	// 读取配置文件中的 token
+	config, err := LoadConfig()
+	if err != nil {
+		log.Printf("Error loading config: %s\n", err)
+		return
+	}
+
+	// 如果需要拦截的接口，应用 TokenMiddleware 中间件
+	http.Handle("/list", TokenMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		listHandler(w, r)
+	}), config.Token))
+
+	http.Handle("/upload", TokenMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uploadHandler(w, r)
+	}), config.Token))
+
+	http.Handle("/delete", TokenMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		deleteHandler(w, r)
+	}), config.Token))
+
+	err = http.ListenAndServe("0.0.0.0:8082", nil)
 	if err != nil {
 		log.Printf("Error: 服务启动失败 %s\n", err)
 	}
+}
+
+// Config 结构用于解析配置文件中的 JSON 数据
+type Config struct {
+	Token string `json:"token"`
+}
+
+// LoadConfig 从配置文件中加载配置信息
+func LoadConfig() (Config, error) {
+	var config Config
+
+	// 读取配置文件
+	data, err := os.ReadFile("config.json")
+	if err != nil {
+		return config, err
+	}
+
+	// 解析 JSON 数据
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return config, err
+	}
+
+	return config, nil
+}
+
+// TokenMiddleware 是用于检查请求头中 token 的中间件
+func TokenMiddleware(next http.Handler, validToken string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 从请求头中获取 token
+		token := r.Header.Get("Authorization")
+
+		// 检查 token 是否有效
+		if token != validToken {
+			// 返回错误响应
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+
+		// 如果 token 有效，调用下一个处理程序
+		next.ServeHTTP(w, r)
+	})
 }
 
 // 获取文件
@@ -94,7 +154,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	// 获取上传的文件
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		sendJSONResponse(w, http.StatusBadRequest, "获取文件失败", err, "")
+		sendJSONResponse(w, http.StatusBadRequest, "接收文件失败", err, "")
 		return
 	}
 	defer func(file multipart.File) {
@@ -292,7 +352,11 @@ func sendJSONResponse(w http.ResponseWriter, statusCode int, message string, err
 		"message": message,
 	}
 
-	log.Printf("Error: %s %s\n", err, url)
+	if err != nil {
+		log.Printf("Error: %s %s\n", err, url)
+	} else {
+		log.Printf("Error: %s %s\n", message, url)
+	}
 
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {

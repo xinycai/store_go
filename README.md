@@ -1,4 +1,5 @@
 # 接口文档说明
+#### 需要在config.json中配置token，token值随意
 
 ## 列出目录内容
 
@@ -6,6 +7,12 @@
 
 - **方法：** POST
 - **路径：** `/list`
+- **请求头：**
+  ```json
+  {
+      "Authorization": Token
+  }
+  ```
 - **请求体：**
   ```json
   {
@@ -45,6 +52,12 @@
 
 - **方法：** POST
 - **路径：** `/upload`
+- **请求头：**
+  ```json
+  {
+      "Authorization": Token
+  }
+  ```
 - **请求体：**
   ```json
   {
@@ -72,6 +85,12 @@
 
 - **方法：** POST
 - **路径：** `/delete`
+- **请求头：**
+  ```json
+  {
+      "Authorization": Token
+  }
+  ```
 - **请求体：**
   ```json
   {
